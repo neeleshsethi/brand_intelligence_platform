@@ -4,6 +4,7 @@ from typing import TypeVar, Generic, Optional
 from pydantic import BaseModel
 import instructor
 from openai import OpenAI
+from langsmith import traceable
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from core.config import settings
 import json
@@ -40,28 +41,33 @@ class BaseAgent(Generic[T]):
         retry=retry_if_exception_type((Exception,)),
         reraise=True
     )
+    @traceable(run_type="llm")
     def _call_llm(self, user_prompt: str) -> T:
-        """Call LLM with retry logic."""
+        """Call LLM with retry logic and LangSmith tracing."""
         if settings.MOCK_MODE or not self.client:
             if self.mock_response:
                 return self.mock_response
             else:
                 raise ValueError(f"Mock mode enabled but no mock response provided for {self.name}")
 
+        # Prepare messages for tracing
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
         # Use instructor for structured output
         response = self.client.chat.completions.create(
             model="gpt-4o-mini",
             response_model=self.response_model,
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
+            messages=messages,
             temperature=0.7,
             max_tokens=4000
         )
 
         return response
 
+    @traceable(run_type="chain")
     async def run(self, user_prompt: str) -> T:
         """Run the agent with the given prompt."""
         try:

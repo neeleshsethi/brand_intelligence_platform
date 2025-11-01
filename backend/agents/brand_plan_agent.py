@@ -61,7 +61,8 @@ Market Share: {input_data.brand.market_share}%
             brand_info=brand_info,
             strategy=input_data.strategy_output or "No strategy provided",
             budget=f"${input_data.budget:,.0f}" if input_data.budget else "Not specified",
-            timeframe=input_data.timeframe
+            timeframe=input_data.timeframe,
+            strategic_goals=input_data.strategic_goals or "Not specified"
         )
 
         # Run brand planning

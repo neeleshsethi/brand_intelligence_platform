@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { brandApi } from '../lib/api';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { SWOTAnalysis } from '../components/SWOTAnalysis';
@@ -13,7 +13,14 @@ export function CompetitiveIntel() {
   const { brandId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const brand = location.state?.brand;
+
+  // Fetch brand data
+  const { data: brandsData } = useQuery({
+    queryKey: ['brands'],
+    queryFn: async () => (await brandApi.listBrands()).data,
+  });
+
+  const brand = location.state?.brand || brandsData?.find((b: any) => b.id === brandId);
 
   const [loadingSteps] = useState([
     'Gathering brand data...',
@@ -35,13 +42,10 @@ export function CompetitiveIntel() {
     },
   });
 
-  useEffect(() => {
-    if (!brand) {
-      navigate('/');
-      return;
-    }
+  const handleAnalyze = () => {
+    setCurrentStep(0);
     analyzeMutation.mutate();
-  }, []);
+  };
 
   useEffect(() => {
     if (analyzeMutation.isPending && currentStep < loadingSteps.length - 1) {
@@ -72,7 +76,19 @@ export function CompetitiveIntel() {
     setToast({ message: 'Insight marked for review', type: 'error' });
   };
 
-  if (analyzeMutation.isPending || currentStep < loadingSteps.length) {
+  // Show loading while brand data is being fetched
+  if (!brand) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pfizer-blue mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading brand data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (analyzeMutation.isPending && currentStep < loadingSteps.length) {
     return (
       <LoadingOverlay
         message="Our AI agents are analyzing the competitive landscape..."
@@ -93,6 +109,37 @@ export function CompetitiveIntel() {
             className="bg-pfizer-blue text-white px-6 py-2 rounded-lg hover:bg-pfizer-blue-dark"
           >
             Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show start analysis screen if no data yet
+  if (!analyzeMutation.data) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-gradient-to-r from-pfizer-blue to-pfizer-blue-dark text-white py-6">
+          <div className="max-w-7xl mx-auto px-4">
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 text-white hover:text-pfizer-blue-light mb-4 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Dashboard
+            </button>
+            <h1 className="text-3xl font-bold">Competitive Intelligence</h1>
+            <p className="mt-2 text-white opacity-90">{brand.name} - {brand.company}</p>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 py-16 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Ready to analyze {brand.name}?</h2>
+          <p className="text-gray-600 mb-8">Our AI agents will analyze the competitive landscape and generate strategic insights.</p>
+          <button
+            onClick={handleAnalyze}
+            className="bg-pfizer-blue text-white px-8 py-3 rounded-lg hover:bg-pfizer-blue-dark text-lg font-medium transition-colors"
+          >
+            Start Analysis
           </button>
         </div>
       </div>

@@ -18,6 +18,9 @@ BRAND_PLAN_USER_PROMPT = """Create a comprehensive brand plan based on the follo
 BRAND INFORMATION:
 {brand_info}
 
+STRATEGIC GOALS:
+{strategic_goals}
+
 STRATEGIC FRAMEWORK:
 {strategy}
 
@@ -27,10 +30,12 @@ TIMEFRAME: {timeframe}
 Develop a complete brand plan with:
 1. Executive Summary - concise overview
 2. Market Analysis - current state and trends
-3. Strategy - positioning and approach
-4. Tactics - specific initiatives to execute
-5. KPIs - measurable success metrics
+3. Strategy - positioning and approach aligned with the strategic goals
+4. Tactics - specific initiatives to execute that support the goals
+5. KPIs - measurable success metrics aligned with the strategic goals
 6. Budget Allocation - recommended spend by channel
 7. Timeline - phased implementation plan
+
+IMPORTANT: Tailor the entire plan to directly address the strategic goals provided above. Every tactic, KPI, and recommendation should support achieving these goals.
 
 Make the plan actionable and specific to the pharmaceutical industry."""

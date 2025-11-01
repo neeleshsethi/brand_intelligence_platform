@@ -32,6 +32,7 @@ class GeneratePlanRequest(BaseModel):
     """Request for plan generation."""
     budget: Optional[float] = None
     timeframe: str = "12 months"
+    strategic_goals: Optional[str] = None
 
 
 class ScenarioRequest(BaseModel):
@@ -197,7 +198,8 @@ async def generate_brand_plan(
         plan_input = BrandPlanInput(
             brand=brand_data,
             budget=request.budget,
-            timeframe=request.timeframe
+            timeframe=request.timeframe,
+            strategic_goals=request.strategic_goals
         )
         plan_result = await brand_plan_agent.create_plan(plan_input)
 
@@ -212,11 +214,14 @@ async def generate_brand_plan(
             }
         }
 
-        # Save to database
+        # Save to database with auto-incrementing version
+        existing_plans = BrandRepository.get_brand_plans(brand_id)
+        next_version = max([p.get("version", 0) for p in existing_plans], default=0) + 1
+
         plan_data = {
             "brand_id": brand_id,
             "plan_json": plan_result.model_dump(),
-            "version": 1  # TODO: Auto-increment version
+            "version": next_version
         }
         saved_plan = BrandRepository.create_brand_plan(plan_data)
         result["saved_plan_id"] = saved_plan["id"]
@@ -263,6 +268,8 @@ async def analyze_scenario(request: ScenarioRequest) -> Dict[str, Any]:
                     therapeutic_area=brand["therapeutic_area"],
                     market_share=brand.get("market_share")
                 )
+            else:
+                raise HTTPException(status_code=404, detail=f"Brand {request.brand_id} not found")
         elif request.brand_name:
             # Use provided brand name
             brand_data = BrandData(
@@ -272,6 +279,9 @@ async def analyze_scenario(request: ScenarioRequest) -> Dict[str, Any]:
             )
         else:
             raise HTTPException(status_code=400, detail="Either brand_id or brand_name required")
+
+        if not brand_data:
+            raise HTTPException(status_code=400, detail="Brand data could not be loaded")
 
         # Run ScenarioAgent
         scenario_input = ScenarioInput(

@@ -13,6 +13,7 @@ export function BrandPlanner() {
   const { brandId } = useParams();
   const navigate = useNavigate();
   const [selectedMarket, setSelectedMarket] = useState('US');
+  const [strategicGoals, setStrategicGoals] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -36,7 +37,7 @@ export function BrandPlanner() {
 
   // Generate plan mutation
   const generateMutation = useMutation({
-    mutationFn: () => brandApi.generatePlan(brandId!, 5000000, '12 months'),
+    mutationFn: () => brandApi.generatePlan(brandId!, 5000000, '12 months', strategicGoals || undefined),
     onSuccess: () => {
       setCurrentStep(loadingSteps.length - 1);
       setTimeout(() => {
@@ -82,13 +83,42 @@ export function BrandPlanner() {
     { month: 'Dec', marketShare: (selectedBrand?.market_share || 42) + 12.8 },
   ];
 
-  if (generateMutation.isPending || currentStep < loadingSteps.length) {
+  // Show loading while brand data is being fetched
+  if (!selectedBrand && !generateMutation.data) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pfizer-blue mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading brand data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (generateMutation.isPending && currentStep < loadingSteps.length) {
     return (
       <LoadingOverlay
         message="Our AI agents are generating your brand plan..."
         steps={loadingSteps}
         currentStep={currentStep}
       />
+    );
+  }
+
+  if (generateMutation.isError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-lg max-w-md">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error Generating Plan</h2>
+          <p className="text-gray-700 mb-4">{(generateMutation.error as any)?.response?.data?.detail || 'An error occurred while generating the brand plan.'}</p>
+          <button
+            onClick={() => navigate('/')}
+            className="w-full bg-pfizer-blue text-white py-2 px-4 rounded-md hover:bg-pfizer-blue-dark transition-colors"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -159,6 +189,23 @@ export function BrandPlanner() {
                     </label>
                   ))}
                 </div>
+              </div>
+
+              {/* Strategic Goals */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Strategic Goals
+                </label>
+                <textarea
+                  value={strategicGoals}
+                  onChange={(e) => setStrategicGoals(e.target.value)}
+                  placeholder="e.g., Increase market share by 5%, Launch in new geography, Defend against generic competition"
+                  rows={4}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pfizer-blue focus:border-transparent resize-none"
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  Describe your key objectives to get a tailored strategic plan
+                </p>
               </div>
 
               {/* Brand Info Display */}

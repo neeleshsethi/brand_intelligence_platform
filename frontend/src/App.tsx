@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Dashboard } from './pages/Dashboard';
 import { CompetitiveIntel } from './pages/CompetitiveIntel';
 import { BrandPlanner } from './pages/BrandPlanner';
+import { ScenarioModeling } from './pages/ScenarioModeling';
 import './App.css';
 
 const queryClient = new QueryClient({
@@ -23,6 +24,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/intel/:brandId" element={<CompetitiveIntel />} />
           <Route path="/planner/:brandId" element={<BrandPlanner />} />
+          <Route path="/scenario" element={<ScenarioModeling />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

@@ -26,6 +26,7 @@ Provide a comprehensive scenario analysis including:
 2. Overall risk level assessment
 3. THREE specific defensive tactics the brand can employ
 4. Immediate recommended action
+5. Confidence score (0-1) for your analysis
 
 For each defensive tactic, include:
 - Clear description

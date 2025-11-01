@@ -72,6 +72,7 @@ class ScenarioOutput(BaseModel):
     risk_level: str = Field(description="Overall risk level (critical, high, medium, low)")
     defensive_tactics: List[DefensiveTactic] = Field(description="Three defensive tactics")
     recommended_action: str = Field(description="Immediate recommended action")
+    confidence_score: float = Field(default=0.85, description="Confidence in the analysis (0-1)", ge=0, le=1)
 
 
 # Validator Agent Output
@@ -150,6 +151,7 @@ class BrandPlanInput(BaseModel):
     strategy_output: Optional[str] = None  # JSON string of StrategyOutput
     budget: Optional[float] = None
     timeframe: Optional[str] = "12 months"
+    strategic_goals: Optional[str] = None
 
 
 class ScenarioInput(BaseModel):
