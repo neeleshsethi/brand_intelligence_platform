@@ -104,7 +104,87 @@ class BrandRepository:
         return response.data[0]
 
     @staticmethod
+    def validate_insight(insight_id: str) -> Optional[Dict[str, Any]]:
+        """Mark an insight as human-validated."""
+        response = (
+            get_table("insights")
+            .update({"human_validated": True})
+            .eq("id", insight_id)
+            .execute()
+        )
+        if response.data:
+            return response.data[0]
+        return None
+
+    @staticmethod
     def create_brand_plan(plan_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new brand plan."""
         response = get_table("brand_plans").insert(plan_data).execute()
         return response.data[0]
+
+
+class NewsRepository:
+    """Repository for news operations."""
+
+    @staticmethod
+    def create_news_article(article_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create or update a news article."""
+        # Try to insert, on conflict (duplicate URL) do nothing
+        response = get_table("news_articles").upsert(article_data, on_conflict="url").execute()
+        return response.data[0] if response.data else article_data
+
+    @staticmethod
+    def create_brand_news_link(link_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Link a news article to a brand."""
+        response = get_table("brand_news_relevance").upsert(
+            link_data,
+            on_conflict="brand_id,news_article_id"
+        ).execute()
+        return response.data[0] if response.data else link_data
+
+    @staticmethod
+    def get_brand_news(
+        brand_id: str,
+        days: int = 30,
+        limit: int = 15,
+        min_priority: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get news articles relevant to a brand."""
+        query = (
+            get_table("brand_news_relevance")
+            .select("*, news_articles(*)")
+            .eq("brand_id", brand_id)
+            .order("relevance_score", desc=True)
+            .limit(limit)
+        )
+
+        if min_priority:
+            priority_order = {"high": 3, "medium": 2, "low": 1}
+            # This is a simplification - ideally filter in SQL
+            pass
+
+        response = query.execute()
+        return response.data
+
+    @staticmethod
+    def get_news_count(brand_id: str, days: int = 30) -> int:
+        """Get count of news articles for a brand."""
+        response = (
+            get_table("brand_news_relevance")
+            .select("id", count="exact")
+            .eq("brand_id", brand_id)
+            .execute()
+        )
+        return response.count or 0
+
+    @staticmethod
+    def get_high_priority_count(brand_id: str, days: int = 30) -> int:
+        """Get count of high priority news."""
+        response = (
+            get_table("brand_news_relevance")
+            .select("id", count="exact")
+            .eq("brand_id", brand_id)
+            .eq("priority", "high")
+            .execute()
+        )
+        return response.count or 0

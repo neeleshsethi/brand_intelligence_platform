@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: str = ""
 
+    # Tavily (news search)
+    TAVILY_API_KEY: str = ""
+
     # LangSmith
     LANGCHAIN_TRACING_V2: bool = True
     LANGCHAIN_API_KEY: str = ""

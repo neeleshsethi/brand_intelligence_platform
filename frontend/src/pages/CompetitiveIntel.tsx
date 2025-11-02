@@ -22,8 +22,35 @@ export function CompetitiveIntel() {
 
   const brand = location.state?.brand || brandsData?.find((b: any) => b.id === brandId);
 
+  // Fetch approved insights
+  const { data: approvedInsightsData, refetch: refetchInsights } = useQuery({
+    queryKey: ['insights', brandId, 'approved'],
+    queryFn: async () => {
+      if (!brandId) return [];
+      return (await brandApi.getInsights(brandId, true)).data;
+    },
+    enabled: !!brandId,
+  });
+
+  // Fetch recent news
+  const { data: newsData } = useQuery({
+    queryKey: ['news', brandId],
+    queryFn: async () => {
+      if (!brandId) return null;
+      try {
+        return (await brandApi.getBrandNews(brandId, false, 10)).data;
+      } catch (error) {
+        console.error('Failed to fetch news:', error);
+        return null;
+      }
+    },
+    enabled: !!brandId,
+    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+  });
+
   const [loadingSteps] = useState([
     'Gathering brand data...',
+    'Fetching latest market intelligence...',
     'Analyzing competitive landscape...',
     'Evaluating market position...',
     'Generating strategic insights...',
@@ -56,14 +83,21 @@ export function CompetitiveIntel() {
     }
   }, [analyzeMutation.isPending, currentStep, loadingSteps.length]);
 
-  const handleValidate = (index: number) => {
-    setValidatedInsights(prev => new Set(prev).add(index));
-    setRejectedInsights(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(index);
-      return newSet;
-    });
-    setToast({ message: 'Insight validated successfully!', type: 'success' });
+  const handleValidate = async (insightId: string, index: number) => {
+    try {
+      await brandApi.validateInsight(insightId);
+      setValidatedInsights(prev => new Set(prev).add(index));
+      setRejectedInsights(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(index);
+        return newSet;
+      });
+      setToast({ message: 'Insight validated successfully!', type: 'success' });
+      // Refetch approved insights to update the list
+      refetchInsights();
+    } catch (error) {
+      setToast({ message: 'Failed to validate insight', type: 'error' });
+    }
   };
 
   const handleReject = (index: number) => {
@@ -132,15 +166,122 @@ export function CompetitiveIntel() {
             <p className="mt-2 text-white opacity-90">{brand.name} - {brand.company}</p>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto px-4 py-16 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Ready to analyze {brand.name}?</h2>
-          <p className="text-gray-600 mb-8">Our AI agents will analyze the competitive landscape and generate strategic insights.</p>
-          <button
-            onClick={handleAnalyze}
-            className="bg-pfizer-blue text-white px-8 py-3 rounded-lg hover:bg-pfizer-blue-dark text-lg font-medium transition-colors"
-          >
-            Start Analysis
-          </button>
+        <div className="max-w-7xl mx-auto px-4 py-16">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Ready to analyze {brand.name}?</h2>
+            <p className="text-gray-600 mb-8">Our AI agents will analyze the competitive landscape and generate strategic insights.</p>
+            <button
+              onClick={handleAnalyze}
+              className="bg-pfizer-blue text-white px-8 py-3 rounded-lg hover:bg-pfizer-blue-dark text-lg font-medium transition-colors"
+            >
+              Start Analysis
+            </button>
+          </div>
+
+          {/* Recent Market Intelligence */}
+          <div className="mt-16">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Recent Market Intelligence
+              <span className="text-sm text-gray-500 ml-2">
+                (Last 30 days)
+              </span>
+            </h2>
+            {newsData && newsData.articles && newsData.articles.length > 0 ? (
+              <div className="space-y-4">
+                {newsData.articles.slice(0, 5).map((article: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow animate-fade-in"
+                    style={{ animationDelay: `${idx * 100}ms` }}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase ${
+                            article.priority === 'high' ? 'bg-red-100 text-red-700' :
+                            article.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {article.priority}
+                          </span>
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                            article.sentiment === 'positive' ? 'bg-green-50 text-green-700' :
+                            article.sentiment === 'negative' ? 'bg-red-50 text-red-700' :
+                            'bg-gray-50 text-gray-700'
+                          }`}>
+                            {article.sentiment === 'positive' ? '📈' : article.sentiment === 'negative' ? '📉' : '➖'} {article.sentiment}
+                          </span>
+                          <span className="text-xs text-gray-500">{article.source}</span>
+                          <span className="text-xs text-gray-400">•</span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(article.published_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <h3 className="font-semibold text-gray-900 mb-2 hover:text-pfizer-blue">
+                          <a href={article.url} target="_blank" rel="noopener noreferrer">
+                            {article.title}
+                          </a>
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                          {article.content?.substring(0, 200)}...
+                        </p>
+                        <p className="text-xs text-pfizer-blue font-medium">
+                          {article.relevance_reason}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {newsData.articles.length > 5 && (
+                  <div className="text-center text-sm text-gray-500 mt-4">
+                    Showing 5 of {newsData.articles.length} articles
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+                <p className="text-gray-600">
+                  {newsData === null ? 'News intelligence is loading or requires Tavily API key to be configured.' : 'No recent news found for this brand.'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Approved Insights - Always Visible */}
+          <div className="mt-16">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Approved Insights
+              <span className="text-sm text-gray-500 ml-2">
+                ({approvedInsightsData?.length || 0} validated)
+              </span>
+            </h2>
+            {approvedInsightsData && approvedInsightsData.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {approvedInsightsData.map((insight: any, idx: number) => (
+                  <div key={insight.id} className="animate-fade-in">
+                    <InsightCard
+                      title={insight.type.charAt(0).toUpperCase() + insight.type.slice(1)}
+                      description={insight.content}
+                      aiReasoning={insight.ai_reasoning || 'No reasoning provided'}
+                      confidenceScore={insight.confidence_score}
+                      impact="medium"
+                      category={insight.type}
+                      delay={idx * 150}
+                    />
+                    <div className="mt-3 px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-medium text-center">
+                      ✓ Human Validated
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+                <p className="text-gray-600">
+                  No approved insights yet. Run an analysis and validate insights to see them appear here.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -175,6 +316,53 @@ export function CompetitiveIntel() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Recent Market Intelligence */}
+        {newsData && newsData.articles && newsData.articles.length > 0 && (
+          <div className="mb-8 animate-fade-in">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Recent Market Intelligence
+              <span className="text-sm text-gray-500 ml-2">
+                ({newsData.high_priority_count} high priority • {newsData.total_count} total articles)
+              </span>
+            </h2>
+            <div className="space-y-3">
+              {newsData.articles.slice(0, 3).map((article: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${
+                          article.priority === 'high' ? 'bg-red-100 text-red-700' :
+                          article.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {article.priority}
+                        </span>
+                        <span className="text-xs text-gray-500">{article.source}</span>
+                        <span className="text-xs text-gray-400">•</span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(article.published_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <h3 className="font-semibold text-sm text-gray-900 mb-1 hover:text-pfizer-blue">
+                        <a href={article.url} target="_blank" rel="noopener noreferrer">
+                          {article.title}
+                        </a>
+                      </h3>
+                      <p className="text-xs text-pfizer-blue">
+                        {article.relevance_reason}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Top Section: Positioning & SWOT */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <PositioningMatrix brands={positioningData} highlightBrand={brand?.name} />
@@ -228,7 +416,14 @@ export function CompetitiveIntel() {
                 {/* Validate/Reject Buttons */}
                 <div className="mt-3 flex gap-2">
                   <button
-                    onClick={() => handleValidate(idx)}
+                    onClick={() => {
+                      const insightId = data?.saved_insight_ids?.[idx];
+                      if (insightId) {
+                        handleValidate(insightId, idx);
+                      } else {
+                        setToast({ message: 'Insight ID not found', type: 'error' });
+                      }
+                    }}
                     disabled={validatedInsights.has(idx)}
                     className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                       validatedInsights.has(idx)
@@ -258,11 +453,51 @@ export function CompetitiveIntel() {
         </div>
 
         {/* Market Summary */}
-        <div className="animate-fade-in" style={{ animationDelay: '800ms' }}>
+        <div className="mb-8 animate-fade-in" style={{ animationDelay: '800ms' }}>
           <div className="bg-gradient-to-r from-pfizer-blue to-pfizer-blue-dark text-white rounded-lg p-6">
             <h3 className="font-semibold text-lg mb-2">Executive Summary</h3>
             <p className="text-white opacity-90 leading-relaxed">{analysis?.summary}</p>
           </div>
+        </div>
+
+        {/* Approved Insights */}
+        <div className="animate-fade-in" style={{ animationDelay: '1000ms' }}>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            Approved Insights
+            <span className="text-sm text-gray-500 ml-2">
+              ({approvedInsightsData?.length || 0} validated)
+            </span>
+          </h2>
+          {approvedInsightsData && approvedInsightsData.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {approvedInsightsData.map((insight: any, idx: number) => (
+                <div
+                  key={insight.id}
+                  className="animate-fade-in"
+                  style={{ animationDelay: `${1100 + idx * 150}ms` }}
+                >
+                  <InsightCard
+                    title={insight.type.charAt(0).toUpperCase() + insight.type.slice(1)}
+                    description={insight.content}
+                    aiReasoning={insight.ai_reasoning || 'No reasoning provided'}
+                    confidenceScore={insight.confidence_score}
+                    impact="medium"
+                    category={insight.type}
+                    delay={1200 + idx * 200}
+                  />
+                  <div className="mt-3 px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-medium text-center">
+                    ✓ Human Validated
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+              <p className="text-gray-600">
+                No approved insights yet. Validate insights above to see them appear here.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

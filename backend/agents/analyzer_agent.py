@@ -51,7 +51,7 @@ class AnalyzerAgent(BaseAgent[AnalyzerOutput]):
             mock_response=MOCK_ANALYZER_OUTPUT
         )
 
-    async def analyze(self, input_data: AnalyzerInput) -> AnalyzerOutput:
+    async def analyze(self, input_data: AnalyzerInput, news_articles: list = None) -> AnalyzerOutput:
         """Analyze brand and competitive landscape."""
 
         # Generate brand-specific mock response if in MOCK_MODE
@@ -77,15 +77,38 @@ Market Share: {input_data.brand.market_share}%
             for comp in input_data.competitors
         ])
 
+        # Format news context
+        news_context = self._format_news_context(news_articles) if news_articles else "No recent news intelligence available."
+
         # Create user prompt
         user_prompt = ANALYZER_USER_PROMPT.format(
             brand_info=brand_info,
             competitor_info=competitor_info,
-            market_context=input_data.market_context or "No additional context provided"
+            market_context=input_data.market_context or "No additional context provided",
+            news_context=news_context
         )
 
         # Run analysis
         return await self.run(user_prompt)
+
+    def _format_news_context(self, articles: list) -> str:
+        """Format news articles for prompt context."""
+        if not articles:
+            return "No recent news intelligence available."
+
+        formatted = []
+        for idx, article in enumerate(articles[:10], 1):  # Limit to top 10
+            article_text = f"""
+{idx}. [{article.get('priority', 'medium').upper()}] {article.get('title', 'Untitled')}
+   Source: {article.get('source', 'Unknown')} | Published: {article.get('published_at', 'Unknown date')}
+   Sentiment: {article.get('sentiment', 'neutral')}
+   Relevance: {article.get('relevance_reason', 'General market news')}
+   Summary: {article.get('content', '')[:300]}...
+   URL: {article.get('url', 'N/A')}
+"""
+            formatted.append(article_text.strip())
+
+        return "\n\n".join(formatted)
 
     def _get_brand_specific_mock(self, input_data: AnalyzerInput) -> AnalyzerOutput:
         """Get mock response tailored to the brand's therapeutic area."""

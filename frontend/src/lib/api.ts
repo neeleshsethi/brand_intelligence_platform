@@ -27,6 +27,25 @@ export const brandApi = {
 
   validateContent: (data: { content_type: string; content: string; validation_criteria?: string[] }) =>
     api.post('/api/validate', data),
+
+  getInsights: (brandId: string, validated?: boolean) => {
+    const params = new URLSearchParams({ brand_id: brandId });
+    if (validated !== undefined) {
+      params.append('validated', validated.toString());
+    }
+    return api.get(`/api/insights?${params.toString()}`);
+  },
+
+  validateInsight: (insightId: string) =>
+    api.patch(`/api/insights/${insightId}/validate`),
+
+  getBrandNews: (brandId: string, refresh = false, limit = 15) => {
+    const params = new URLSearchParams({
+      refresh: refresh.toString(),
+      limit: limit.toString()
+    });
+    return api.get(`/api/news/${brandId}?${params.toString()}`);
+  },
 };
 
 export default api;

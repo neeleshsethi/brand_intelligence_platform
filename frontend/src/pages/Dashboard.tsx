@@ -52,21 +52,21 @@ export function Dashboard() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {brands?.filter((brand: any) => brand.company.includes('Pfizer')).map((brand: any) => (
-            <div
-              key={brand.id}
-              className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900">{brand.name}</h3>
-                  <p className="text-gray-600 text-sm mt-1">{brand.company}</p>
-                  <p className="text-xs text-gray-500 mt-1">{brand.therapeutic_area}</p>
+              <div
+                key={brand.id}
+                className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-900">{brand.name}</h3>
+                    <p className="text-gray-600 text-sm mt-1">{brand.company}</p>
+                    <p className="text-xs text-gray-500 mt-1">{brand.therapeutic_area}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-pfizer-blue">{brand.market_share}%</div>
+                    <div className="text-xs text-gray-600">Market Share</div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-pfizer-blue">{brand.market_share}%</div>
-                  <div className="text-xs text-gray-600">Market Share</div>
-                </div>
-              </div>
 
               <div className="mb-4">
                 <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
