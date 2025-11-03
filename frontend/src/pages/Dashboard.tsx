@@ -1,10 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { brandApi } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Loader2, Sparkles } from 'lucide-react';
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   const { data: brands, isLoading } = useQuery({
     queryKey: ['brands'],
     queryFn: async () => {
@@ -12,6 +14,22 @@ export function Dashboard() {
       return response.data;
     },
   });
+
+  // Prefetch news and insights data when user hovers over a brand card
+  const prefetchBrandData = (brandId: string) => {
+    // Prefetch news
+    queryClient.prefetchQuery({
+      queryKey: ['news', brandId],
+      queryFn: async () => (await brandApi.getBrandNews(brandId, false, 5)).data,
+      staleTime: 2 * 60 * 1000,
+    });
+
+    // Prefetch insights
+    queryClient.prefetchQuery({
+      queryKey: ['insights', brandId, 'approved'],
+      queryFn: async () => (await brandApi.getInsights(brandId, true)).data,
+    });
+  };
 
   if (isLoading) {
     return (
@@ -55,6 +73,7 @@ export function Dashboard() {
               <div
                 key={brand.id}
                 className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow"
+                onMouseEnter={() => prefetchBrandData(brand.id)}
               >
                 <div className="flex justify-between items-start mb-4">
                   <div>

@@ -511,8 +511,9 @@ async def get_brand_news(
     - limit: Maximum number of articles to return
     """
     try:
-        # Check if refresh needed or no cached news
-        if refresh or True:  # Always fetch for now (can add caching logic later)
+        # ONLY fetch fresh news if refresh=True (when "Start Analysis" is clicked)
+        if refresh:
+            print(f"Fetching fresh news for brand {brand_id}...")
             # Fetch brand details
             brand = BrandRepository.get_brand_by_id(brand_id)
             if not brand:
@@ -601,7 +602,9 @@ async def get_brand_news(
 
                 stored_articles.append({**stored_article, "priority": priority, "relevance_score": article.get("base_relevance", 0.5)})
 
-        # Fetch stored news for brand
+            print(f"Stored {len(stored_articles)} new articles")
+
+        # Always fetch from database (fast!)
         news_data = NewsRepository.get_brand_news(brand_id, limit=limit)
 
         # Format response
@@ -624,12 +627,18 @@ async def get_brand_news(
 
         high_priority_count = len([a for a in articles_list if a["priority"] == "high"])
 
+        # Get the most recent article timestamp for last_updated
+        last_updated = datetime.now().isoformat()
+        if news_data and len(news_data) > 0:
+            # Get created_at from the first brand_news link (most recent)
+            last_updated = news_data[0].get("created_at", datetime.now().isoformat())
+
         return {
             "brand_id": brand_id,
             "articles": articles_list[:limit],
             "total_count": len(articles_list),
             "high_priority_count": high_priority_count,
-            "last_updated": datetime.now().isoformat()
+            "last_updated": last_updated
         }
 
     except HTTPException:

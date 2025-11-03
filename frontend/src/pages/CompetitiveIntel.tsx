@@ -44,18 +44,12 @@ export function CompetitiveIntel() {
     queryKey: ['news', brandId],
     queryFn: async () => {
       if (!brandId) return null;
-      try {
-        return (await brandApi.getBrandNews(brandId, false, 5)).data; // Fetch only what we display
-      } catch (error) {
-        console.error('Failed to fetch news:', error);
-        return null;
-      }
+      const response = (await brandApi.getBrandNews(brandId, false, 5)).data;
+      return response;
     },
     enabled: !!brandId,
     staleTime: 2 * 60 * 1000, // 2 minutes
     placeholderData: keepPreviousData,
-    refetchInterval: 5 * 60 * 1000,
-    refetchIntervalInBackground: false, // Don't refetch when tab is in background
   });
 
   const [loadingSteps] = useState([
@@ -189,7 +183,14 @@ export function CompetitiveIntel() {
                 (Last 30 days)
               </span>
             </h2>
-            {newsData && newsData.articles && newsData.articles.length > 0 ? (
+            {newsLoading ? (
+              <div className="bg-white border border-gray-200 rounded-lg p-8">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pfizer-blue"></div>
+                  <p className="text-gray-600">Loading news articles...</p>
+                </div>
+              </div>
+            ) : newsData && newsData.articles && newsData.articles.length > 0 ? (
               <div className="space-y-4">
                 {newsData.articles.slice(0, 5).map((article: any, idx: number) => (
                   <div
@@ -228,9 +229,11 @@ export function CompetitiveIntel() {
                         <p className="text-sm text-gray-600 mb-2 line-clamp-2">
                           {article.content?.substring(0, 200)}...
                         </p>
-                        <p className="text-xs text-pfizer-blue font-medium">
-                          {article.relevance_reason}
-                        </p>
+                        {article.relevance_reason && (
+                          <p className="text-xs text-pfizer-blue font-medium">
+                            {article.relevance_reason}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -384,9 +387,11 @@ export function CompetitiveIntel() {
                           {article.title}
                         </a>
                       </h3>
-                      <p className="text-xs text-pfizer-blue">
-                        {article.relevance_reason}
-                      </p>
+                      {article.relevance_reason && (
+                        <p className="text-xs text-pfizer-blue">
+                          {article.relevance_reason}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
