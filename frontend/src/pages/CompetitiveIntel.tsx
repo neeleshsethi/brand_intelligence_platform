@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { brandApi } from '../lib/api';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { SWOTAnalysis } from '../components/SWOTAnalysis';
@@ -13,39 +13,49 @@ export function CompetitiveIntel() {
   const { brandId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  // Fetch brand data
-  const { data: brandsData } = useQuery({
+  // Fetch brand data with longer cache time
+  const { data: brandsData, isLoading: brandsLoading } = useQuery({
     queryKey: ['brands'],
     queryFn: async () => (await brandApi.listBrands()).data,
+    staleTime: 30 * 60 * 1000, // 30 minutes - brands rarely change
+    placeholderData: keepPreviousData,
   });
 
-  const brand = location.state?.brand || brandsData?.find((b: any) => b.id === brandId);
+  // Memoize brand lookup to prevent recalculation on every render
+  const brand = useMemo(() => {
+    return location.state?.brand || brandsData?.find((b: any) => b.id === brandId);
+  }, [location.state?.brand, brandsData, brandId]);
 
-  // Fetch approved insights
-  const { data: approvedInsightsData, refetch: refetchInsights } = useQuery({
+  // Fetch approved insights with loading state
+  const { data: approvedInsightsData, refetch: refetchInsights, isLoading: insightsLoading } = useQuery({
     queryKey: ['insights', brandId, 'approved'],
     queryFn: async () => {
       if (!brandId) return [];
       return (await brandApi.getInsights(brandId, true)).data;
     },
     enabled: !!brandId,
+    placeholderData: keepPreviousData,
   });
 
-  // Fetch recent news
-  const { data: newsData } = useQuery({
+  // Fetch recent news with optimized refetching
+  const { data: newsData, isLoading: newsLoading } = useQuery({
     queryKey: ['news', brandId],
     queryFn: async () => {
       if (!brandId) return null;
       try {
-        return (await brandApi.getBrandNews(brandId, false, 10)).data;
+        return (await brandApi.getBrandNews(brandId, false, 5)).data; // Fetch only what we display
       } catch (error) {
         console.error('Failed to fetch news:', error);
         return null;
       }
     },
     enabled: !!brandId,
-    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    placeholderData: keepPreviousData,
+    refetchInterval: 5 * 60 * 1000,
+    refetchIntervalInBackground: false, // Don't refetch when tab is in background
   });
 
   const [loadingSteps] = useState([
@@ -66,13 +76,16 @@ export function CompetitiveIntel() {
     onSuccess: () => {
       setCurrentStep(loadingSteps.length - 1);
       setTimeout(() => setCurrentStep(loadingSteps.length), 500);
+      // Invalidate and refetch insights and news after analysis
+      queryClient.invalidateQueries({ queryKey: ['insights', brandId] });
+      queryClient.invalidateQueries({ queryKey: ['news', brandId] });
     },
   });
 
-  const handleAnalyze = () => {
+  const handleAnalyze = useCallback(() => {
     setCurrentStep(0);
     analyzeMutation.mutate();
-  };
+  }, [analyzeMutation]);
 
   useEffect(() => {
     if (analyzeMutation.isPending && currentStep < loadingSteps.length - 1) {
@@ -83,7 +96,7 @@ export function CompetitiveIntel() {
     }
   }, [analyzeMutation.isPending, currentStep, loadingSteps.length]);
 
-  const handleValidate = async (insightId: string, index: number) => {
+  const handleValidate = useCallback(async (insightId: string, index: number) => {
     try {
       await brandApi.validateInsight(insightId);
       setValidatedInsights(prev => new Set(prev).add(index));
@@ -98,9 +111,9 @@ export function CompetitiveIntel() {
     } catch (error) {
       setToast({ message: 'Failed to validate insight', type: 'error' });
     }
-  };
+  }, [refetchInsights]);
 
-  const handleReject = (index: number) => {
+  const handleReject = useCallback((index: number) => {
     setRejectedInsights(prev => new Set(prev).add(index));
     setValidatedInsights(prev => {
       const newSet = new Set(prev);
@@ -108,19 +121,9 @@ export function CompetitiveIntel() {
       return newSet;
     });
     setToast({ message: 'Insight marked for review', type: 'error' });
-  };
+  }, []);
 
-  // Show loading while brand data is being fetched
-  if (!brand) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pfizer-blue mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading brand data...</p>
-        </div>
-      </div>
-    );
-  }
+  // Removed blocking check - allow progressive rendering with loading states
 
   if (analyzeMutation.isPending && currentStep < loadingSteps.length) {
     return (
@@ -292,11 +295,11 @@ export function CompetitiveIntel() {
   const strategy = data?.strategy;
 
   // Mock positioning data (in real app, calculate from competitors)
-  const positioningData = [
+  const positioningData = useMemo(() => [
     { name: brand?.name, price: 75, efficacy: 89, marketShare: brand?.market_share },
     { name: 'Competitor A', price: 45, efficacy: 65, marketShare: 25 },
     { name: 'Competitor B', price: 60, efficacy: 70, marketShare: 35 },
-  ];
+  ], [brand?.name, brand?.market_share]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -310,14 +313,43 @@ export function CompetitiveIntel() {
             <ArrowLeft className="w-4 h-4" />
             Back to Dashboard
           </button>
-          <h1 className="text-3xl font-bold">{brand?.name} - Competitive Intelligence</h1>
-          <p className="mt-2 text-white opacity-90">{brand?.company} | {brand?.therapeutic_area}</p>
+          <h1 className="text-3xl font-bold">
+            {brandsLoading ? (
+              <span className="inline-block bg-white/20 h-8 w-64 animate-pulse rounded"></span>
+            ) : (
+              `${brand?.name || 'Brand'} - Competitive Intelligence`
+            )}
+          </h1>
+          <p className="mt-2 text-white opacity-90">
+            {brandsLoading ? (
+              <span className="inline-block bg-white/20 h-4 w-48 animate-pulse rounded"></span>
+            ) : (
+              `${brand?.company} | ${brand?.therapeutic_area}`
+            )}
+          </p>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Recent Market Intelligence */}
-        {newsData && newsData.articles && newsData.articles.length > 0 && (
+        {newsLoading ? (
+          <div className="mb-8 animate-fade-in">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Recent Market Intelligence
+            </h2>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white border border-gray-200 rounded-lg p-4">
+                  <div className="animate-pulse">
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/2 mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : newsData && newsData.articles && newsData.articles.length > 0 && (
           <div className="mb-8 animate-fade-in">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
               Recent Market Intelligence
@@ -468,7 +500,20 @@ export function CompetitiveIntel() {
               ({approvedInsightsData?.length || 0} validated)
             </span>
           </h2>
-          {approvedInsightsData && approvedInsightsData.length > 0 ? (
+          {insightsLoading ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white border border-gray-200 rounded-lg p-6">
+                  <div className="animate-pulse">
+                    <div className="h-5 bg-gray-200 rounded w-1/2 mb-4"></div>
+                    <div className="h-3 bg-gray-200 rounded w-full mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-5/6 mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-4/5"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : approvedInsightsData && approvedInsightsData.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {approvedInsightsData.map((insight: any, idx: number) => (
                 <div
